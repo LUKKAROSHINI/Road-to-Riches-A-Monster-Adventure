@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Road to Riches A Monster Adventure</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: url('starry-sky.gif') no-repeat center center fixed; 
+            background-size: cover;
+        }
+        canvas { display: block; }
+        #scorePanel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 20px;
+            font-size: 24px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Score panel -->
+<div id="scorePanel">Score: 0</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.142.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.142.0/examples/js/loaders/GLTFLoader.js"></script>
+
+<script>
+    // Scene setup
+    const scene = new THREE.Scene();
+
+    // Camera setup
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 10, 15); // Initial camera position further back
+    camera.lookAt(new THREE.Vector3(0, 1, 0)); // Look at the girl
+
+    // Renderer setup
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Add lighting
+    const ambientLight = new THREE.AmbientLight(0x404040, 3); // Soft light
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(10, 10, 10).normalize();
+    scene.add(directionalLight);
+
+    // GLTF Loader to load 3D models
+    const loader = new THREE.GLTFLoader();
+
+    let girl, mixer, monster, monsterMixer; // References to the girl model, animation mixers, and monster
+    let road; // Reference to the road scene with buildings
+    let coins = []; // Array to store coins
+    let score = 0; // Player's score
+
+    // Function to update the scoreboard
+    function updateScore() {
+        document.getElementById('scorePanel').innerText = `Score: ${score}`;
+    }
+
+    // Load the road model (road.glb) which includes the city and buildings
+    loader.load('models/road.glb', function(gltf) {
+        road = gltf.scene;
+        road.scale.set(0.009, 0.009, 0.009); // Adjust scale if necessary
+        road.position.set(0.1, -1, 0.2); // Adjust road level
+        scene.add(road);
+
+        // Wait until the road model is loaded, then generate coins across the road's surface
+        const roadBoundingBox = new THREE.Box3().setFromObject(road); // Get road dimensions
+        spawnCoins(roadBoundingBox);
+    });
+
+    // Load the girl with bike model (girl.glb)
+    loader.load('models/girl.glb', function(gltf) {
+        girl = gltf.scene;
+        girl.scale.set(1.5, 1.5, 1.5); // Adjust scale if necessary
+        girl.position.set(0, 0, 0); // Starting position
+        girl.rotation.y = Math.PI; // Rotate the girl 180 degrees (facing backward)
+        scene.add(girl);
+
+        // Create AnimationMixer and play the animation
+        mixer = new THREE.AnimationMixer(girl);
+        const action = mixer.clipAction(gltf.animations[0]); // Play the first animation (assuming it's the running one)
+        action.play();
+    });
+
+    // Load the monster model (monster.glb)
+    loader.load('models/monster.glb', function(gltf) {
+        monster = gltf.scene;
+        monster.scale.set(1, 1, 1); // Decreased the size of the monster
+        monster.position.set(0, 0, 8); // Start the monster behind the girl at 8 units
+        scene.add(monster);
+
+        // Create AnimationMixer for the monster
+        monsterMixer = new THREE.AnimationMixer(monster);
+        const monsterAction = monsterMixer.clipAction(gltf.animations[0]); // Play the first animation for the monster
+        monsterAction.play(); // Start the monster animation
+    });
+
+    // Function to spawn coins randomly on the road
+    function spawnCoins(roadBoundingBox) {
+        const { min, max } = roadBoundingBox; // Get the min and max corners of the bounding box
+
+        // Load the coin model (coin.glb)
+        loader.load('models/coin.glb', function(gltf) {
+            for (let i = 0; i < 300; i++) { // Spawn 300 coins
+                const coin = gltf.scene.clone();
+                coin.scale.set(1.2, 1.2, 1.2); // Increased size of the coin
+
+                // Generate random positions within the road's bounding box
+                const randomX = THREE.MathUtils.randFloat(min.x, max.x);
+                const randomZ = THREE.MathUtils.randFloat(min.z, max.z);
+                coin.position.set(randomX, 0, randomZ); // Place on the road
+
+                scene.add(coin);
+                coins.push(coin); // Add the coin to the coins array
+            }
+        });
+    }
+
+    // Movement for the girl with arrow keys and rotation with 'R' key
+    let speed = 0.2;
+    let rotationSpeed = Math.PI / 8; // Rotation speed (45 degrees)
+
+    document.addEventListener('keydown', (event) => {
+        if (!girl) return; // Wait until the girl model is loaded
+        switch(event.code) {
+            case 'ArrowUp':
+                girl.position.z -= speed; // Move forward
+                break;
+            case 'ArrowDown':
+                girl.position.z += speed; // Move backward
+                break;
+            case 'ArrowLeft':
+                girl.position.x -= speed; // Move left
+                break;
+            case 'ArrowRight':
+                girl.position.x += speed; // Move right
+                break;
+            case 'KeyR':
+                girl.rotation.y -= rotationSpeed; // Rotate left on 'R' key press
+                monster.rotation.y -= rotationSpeed; // Rotate the monster to match
+                break;
+        }
+    });
+
+    // Function to check if the player is near a coin and collect it
+    function checkCoinCollection() {
+        coins.forEach((coin, index) => {
+            const distance = girl.position.distanceTo(coin.position);
+            if (distance < 1.5) { // If the player is close to the coin
+                scene.remove(coin); // Remove the coin from the scene
+                coins.splice(index, 1); // Remove the coin from the array
+                score++; // Increment the score
+                updateScore(); // Update the scoreboard
+            }
+        });
+    }
+
+    // Function to move the monster to maintain an 8-unit distance from the girl
+    function moveMonster() {
+        if (!monster || !girl) return;
+
+        // Calculate the direction from the girl to the monster
+        const direction = new THREE.Vector3();
+        direction.subVectors(girl.position, monster.position).normalize(); // Calculate direction vector
+
+        // Set the monster's position to maintain an 8-unit distance behind the girl
+        const desiredPosition = girl.position.clone().add(direction.multiplyScalar(-8)); // Move the monster back
+        monster.position.lerp(desiredPosition, 0.1); // Smoothly move the monster towards the desired position
+
+        // Rotate the monster to face the girl
+        monster.lookAt(girl.position);
+        
+        // Update monster animation
+        if (monsterMixer) monsterMixer.update(0.016); // Update monster animation (adjust delta time as needed)
+    }
+
+    // Animation loop
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // Update animations
+        if (mixer) mixer.update(0.016); // Update girl animation (adjust delta time as needed)
+
+        // Move the monster to maintain distance
+        moveMonster();
+
+        // Check for coin collection
+        checkCoinCollection();
+
+        // Update camera position to follow the girl and keep the monster visible
+        const offset = new THREE.Vector3(0, 5, 15); // Increased offset for full visibility of monster
+        camera.position.copy(girl.position).add(offset); // Update camera position based on girl's position
+        camera.lookAt(girl.position); // Make the camera look at the girl
+
+        // Render the main scene
+        renderer.render(scene, camera);
+    }
+
+    animate();
+
+    // Handle window resizing
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+
+</body>
+</html>
