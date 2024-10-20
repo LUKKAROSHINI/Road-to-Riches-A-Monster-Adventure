@@ -17,6 +17,8 @@ Open index.html in your web browser to start your adventure.
 Technologies Used
 Three.js: A powerful JavaScript library for creating 3D graphics in the browser.
 GLTFLoader: For loading 3D models in GLTF format, including the girl, monster, and coins.
+
+
 Future Enhancements
 Introduce power-ups that provide temporary advantages, such as speed boosts or invisibility.
 Add different monster types with unique behaviors to increase gameplay variety.
